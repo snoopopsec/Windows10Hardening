@@ -22,21 +22,20 @@ If ((Test-Admin) -eq $False) {
 }  # End If
 
 $Logo = @"
-╔═══╗░░╔╗░░░░░░░░░░░░╔═══╗░░░░░
-║╔═╗║░░║║░░░░░░░░░░░░║╔═╗║░░░░░
-║║░║╠══╣╚═╦══╦═╦═╗╔══╣╚═╝╠═╦══╗
-║║░║║══╣╔╗║╔╗║╔╣╔╗╣║═╣╔══╣╔╣╔╗║
-║╚═╝╠══║╚╝║╚╝║║║║║║║═╣║░░║║║╚╝║
-╚═══╩══╩══╩══╩╝╚╝╚╩══╩╝░░╚╝╚══╝
+         _
+     .-./*)
+   _/___\/
+     U U
 ===============================
-If you can't beat `em tech `em!
+PoWeRsHeLL
 ===============================
-https://osbornepro.com
-EMAIL: info@osbornepro.com
+
+
 "@
 Write-Output "$Logo"
 
-Write-Output "BEGINING EXECUTION OF SCRIPT TO HARDEN A WINDOWS 10 MACHINE NOT JOINED TO A DOMAIN"
+Write-Output "BEGINING EXECUTION OF SCRIPT TO HARDEN A WINDOWS 10 MACHINE"
+
 
 # WDIGEST CACHE
 Write-Output "[*] Disabling WDigest credentials caching. More info here: https://www.stigviewer.com/stig/windows_10/2017-02-21/finding/V-71763"
@@ -69,6 +68,7 @@ Else {
 
 }  # End Else
 
+
 # ALWAYS INSTALL ELEVATED
 If (((Get-ItemProperty "HKLM:\Software\Policies\Microsoft\Windows\Installer").AlwaysInstallElevated) -eq 1) {
 
@@ -82,7 +82,6 @@ Else {
     Write-Output "[*] EXCELLENT: Target is not vulnerable to AlwaysInstallElevated PrivEsc method "
 
 }  # End Else
-
 
 # WSUS
 Write-Output "[*] Checking for WSUS updates allowed over HTTP for PrivEsc"
@@ -121,7 +120,8 @@ New-NetFirewallRule -DisplayName "Disallow Common Ports That Attackers Use" -Dir
 New-NetFirewallRule -DisplayName "Disallow Common Ports That Attackers Use" -Direction "Outbound" -LocalPort 1336,1337,1338,1339,4444,4445,4446,4447,4448,4449 -Protocol "UDP" -Action Block
 
 Write-Output "[*] Disabling SMBv3 Compression"
-Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters" -Name DisableCompression -Value 1 -ItemType DWORD -Force
+New-Item -Path "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\LanmanServer\Parameters" -Name DisableCompression -Value 1  -Force -ErrorAction SilentlyContinue | Out-Null
+Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters" -Name DisableCompression -Value 1  -Force -ErrorAction SilentlyContinue | Out-Null
 
 # DNS
 Write-Output "[*] Enabling DNS over HTTPS for all Windows applications"
@@ -133,39 +133,21 @@ Invoke-CimMethod -Namespace root/CIMV2 -ClassName Win32_NetworkAdapterConfigurat
 Write-Output "[*] Disabling the use of NetBIOS"
 $CIMInstance = Get-CimInstance -Namespace "root/CIMV2" -ClassName "Win32_NetworkAdapterConfiguration"
 $CIMInstance | Invoke-CimMethod -MethodName SetTcpipNetbios -Arguments @{TcpipNetbiosOptions=2} | Out-Null
+#test alternate disbale NetBIOS
+#Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\services\NetBT\Parameters\Interfaces\tcpip*" -Name NetbiosOptions -Value 2
 
 # RDP
 Write-Output "[*] Disabling Remote Assistance"
 New-Item -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Remote Assistance" -ErrorAction SilentlyContinue | Out-Null
 Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Remote Assistance" -Name "fAllowToGetHelp" -Value 0
 
-$Answer3 = Read-Host -Prompt "Would you like to allow remote access to your computer? [y/N]"
-    If ($Answer3 -like "y*") {
-
-        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server'-name "fDenyTSConnections" -Value 0
-        Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-
-        Write-Output "Enabling NLA on $env:COMPUTERNAME. This setting can be seen under 'View Advanced System Settings' under the 'Remote' Tab"
-        $NLAinfo = Get-CimInstance -ClassName Win32_TSGeneralSetting -Namespace root\cimv2\terminalservices -Filter "TerminalName='RDP-tcp'"
-        $NLAinfo | Invoke-CimMethod -MethodName SetUserAuthenticationRequired -Arguments @{ UserAuthenticationRequired = $True }
-
-        $TSSetting = Get-CimInstance -Namespace root/cimv2/TerminalServices -ClassName Win32_TerminalServiceSetting
-        $TSGeneralSetting = Get-CimInstance -Namespace root/cimv2/TerminalServices -ClassName Win32_TSGeneralSetting
-        $TSSetting | Invoke-CimMethod -MethodName SetAllowTSConnections -Arguments @{AllowTSConnections=1;ModifyFirewallException=1}
-        $TSGeneralSetting | Invoke-CimMethod -MethodName SetUserAuthenticationRequired -Arguments @{UserAuthenticationRequired=1}
-
-    }  # End If
-    ElseIf ($Answer3 -like "n*") {
-
-        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server'-name "fDenyTSConnections" -Value 1
-        Disable-NetFirewallRule -DisplayGroup "Remote Desktop"
-
-    }  # End ElseIf
-
+Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server'-name "fDenyTSConnections" -Value 1
+Disable-NetFirewallRule -DisplayGroup "Remote Desktop"
 
 # SSL
-Write-Output "[*] Disabling outdated SSL ciphers. I was leniant to still allow for possible legacy applications"
-Disable-TlsCipherSuite -Name "TLS_RSA_WITH_3DES_EDE_CBC_SHA"
+Write-Output "[*] Disabling outdated SSL ciphers. "
+Disable-TlsCipherSuite -Name "TLS_RSA_WITH_3DES_EDE_CBC_SHA" -ErrorAction SilentlyContinue | Out-Null
+#this will throw an error 0xD0000225 if TlsCipherSuite is already disabled.
 
 Write-Output "[*] Disabling weak outdated protocols"
 # NULL Ciphers
@@ -190,34 +172,36 @@ New-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders
 New-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Ciphers\AES 128/128' -Name 'Enabled' -Value '1' -PropertyType 'DWord' -Force | Out-Null
 (Get-Item -Path 'HKLM:\').OpenSubKey('SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Ciphers', $true).CreateSubKey('AES 256/256')
 New-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Ciphers\AES 256/256' -Name 'Enabled' -Value '1' -PropertyType 'DWord' -Force | Out-Null
-# SSL2
+#DISABLING SSL2
 New-Item -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\SSL 2.0\Server' -Force | Out-Null
 New-Item -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\SSL 2.0\Client' -Force | Out-Null
 New-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\SSL 2.0\Server' -name 'Enabled' -value '0' -PropertyType 'DWord' -Force | Out-Null
 New-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\SSL 2.0\Client' -name 'Enabled' -value '0' -PropertyType 'DWord' -Force | Out-Null
 New-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\SSL 2.0\Server' -name 'DisabledByDefault' -value '1' -PropertyType 'DWord' -Force | Out-Null
 New-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\SSL 2.0\Client' -name 'DisabledByDefault' -value '1' -PropertyType 'DWord' -Force | Out-Null
-# SSL3
+# DISABLING SSL3
 New-Item -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\SSL 3.0\Server' -Force | Out-Null
 New-Item -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\SSL 3.0\Client' -Force | Out-Null
 New-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\SSL 3.0\Server' -Name 'Enabled' -value '0' -PropertyType 'DWord' -Force | Out-Null
 New-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\SSL 3.0\Client' -Name 'Enabled' -value '0' -PropertyType 'DWord' -Force | Out-Null
 New-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\SSL 3.0\Server' -Name 'DisabledByDefault' -Value '1' -PropertyType 'DWord' -Force | Out-Null
 New-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\SSL 3.0\Client' -Name 'DisabledByDefault' -Value '1' -PropertyType 'DWord' -Force | Out-Null
-# TLS 1.0
+# DISABLING TLS 1.0
 New-Item -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.0\Server' -Force | Out-Null
 New-Item -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.0\Client' -Force | Out-Null
 New-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.0\Server' -Name 'Enabled' -value '0' -PropertyType 'DWord' -Force | Out-Null
 New-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.0\Client' -Name 'Enabled' -value '0' -PropertyType 'DWord' -Force | Out-Null
 New-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.0\Server' -Name 'DisabledByDefault' -Value '1' -PropertyType 'DWord' -Force | Out-Null
 New-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.0\Client' -Name 'DisabledByDefault' -Value '1' -PropertyType 'DWord' -Force | Out-Null
-# ENABLING TLS 1.1 and 1.2
+# DISABLING TLS 1.1 
 New-Item -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.1\Server' -Force | Out-Null
 New-Item -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.1\Client' -Force | Out-Null
-New-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.1\Server' -Name 'Enabled' -Value '1' -PropertyType 'DWord' -Force | Out-Null
-New-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.1\Client' -Name 'Enabled' -Value '1' -PropertyType 'DWord' -Force | Out-Null
-New-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.1\Server' -Name 'DisabledByDefault' -Value '0' -PropertyType 'DWord' -Force | Out-Null
-New-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.1\Client' -Name 'DisabledByDefault' -Value '0' -PropertyType 'DWord' -Force | Out-Null
+New-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.1\Server' -Name 'Enabled' -Value '0' -PropertyType 'DWord' -Force | Out-Null
+New-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.1\Client' -Name 'Enabled' -Value '0' -PropertyType 'DWord' -Force | Out-Null
+New-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.1\Server' -Name 'DisabledByDefault' -Value '1' -PropertyType 'DWord' -Force | Out-Null
+New-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.1\Client' -Name 'DisabledByDefault' -Value '1' -PropertyType 'DWord' -Force | Out-Null
+
+# ENABLING TLS 1.2
 New-Item -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.2\Server' -Force | Out-Null
 New-Item -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.2\Client' -Force | Out-Null
 New-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.2\Server' -Name 'Enabled' -Value '1' -PropertyType 'DWord' -Force | Out-Null
@@ -248,79 +232,13 @@ Else {
 
 }  # End Else
 
+
 # EXTRANEOUS SERVICES
 Write-Output "[*] Disabling receommended unused services"
 $Services = "WMPNetworkSvc","sshd","WMPNetworkSvc","icssvc","RpcLocator","RemoteAccess","XblAuthManager","XblGameSave","XboxNetApiSvc","XboxGipSvc"
-Stop-Service -Name $Services
-$Services | ForEach-Object { Set-Service -Name $_ -StartupType Disabled }
-
-
-# FIREWALL LOG FILES
-Write-Output "[*] Defining log file locations for Public, Domain, and Private firewall connections"
-$FirewallLogFiles = "C:\Windows\System32\LogFiles\Firewall\domainfw.log","C:\Windows\System32\LogFiles\Firewall\domainfw.log.old","C:\Windows\System32\LogFiles\Firewall\privatefw.log","C:\Windows\System32\LogFiles\Firewall"
-New-Item -Path $Path -ItemType Directory -Force -ErrorAction SilentlyContinue | Out-Null
-
-$Acl = Get-Acl -Path $FirewallLogFiles
-$Acl.SetAccessRuleProtection($True, $False)
-$PermittedUsers = @('NT AUTHORITY\SYSTEM', 'BUILTIN\Administrators', 'BUILTIN\Network Configuration Operators', 'NT SERVICE\MpsSvc')
-ForEach ($User in $PermittedUsers) {
-
-  $Permission = $User, 'FullControl', 'Allow'
-  $AccessRule = New-Object -TypeName System.Security.AccessControl.FileSystemAccessRule -ArgumentList $Permission
-  $Acl.AddAccessRule($AccessRule)
-
-}  # End ForEach
-
-$Acl.SetOwner((New-Object -TypeName System.Security.Principal.NTAccount('BUILTIN\Administrators')))
-$Acl | Set-Acl -Path $FirewallLogFiles
-
-# GROUP MEMBERSHIP
-Write-Output "[*] Enabling UAC on all processes that require elevation"
-Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "ConsentPromptBehaviorAdmin" -Value 2
-
-Write-Output "[*] Checking if current user is a member of the local Administrators group"
-If ((Get-LocalGroupMember -Group "Administrators").Name -Contains "$env:COMPUTERNAME\$env:USERNAME") {
-
-    Write-Output "[*] It is considered best practice to log into Windows using a user account that does not have Administrative priviledge. If you wish to continue doing what you are doing it is not critical to adapt to this suggestion"
-
-    $Answer1 = Read-Host -Prompt "Would you like to create a user account to sign into Windows with from now on and use the $env:USERNAME account and password whenever you need to elevate privilege? [y/N]"
-    If ($Answer1 -like "y*") {
-
-        $FullName = Read-Host -Prompt "What is the full name of the user who will use this account"
-        $Name = Read-Host -Prompt "What should the account Name be? EXAMPLE: John Smith"
-        $Description = Read-Host -Prompt "Add a description for this user account if you like. Feel free to leave blank"
-
-        Write-Output "[*] Creating the $Name user account"
-        New-LocalUser -FullName $FullName -Name $Name -Description $Description -Password (Read-Host -Prompt "Set the password for the account" -AsSecureString)
-
-        Write-Output "[*] Adding $Name to the local Users group"
-        Add-LocalGroupMember -Group "Users" -Member "$Name"
-
-    }  # End If
-
-}  # End If
-
-
-# PASSWORD VAULT
-[Windows.Security.Credentials.PasswordVault,Windows.Security.Credentials,ContentType=WindowsRuntime]
-$Vault = New-Object -TypeName Windows.Security.Credentials.PasswordVault
-$Vault.RetrieveAll()
-
-$Answer2 = Read-Host -Prompt "[*] If you see any saved passwords in the output above it is because they credentials are most likely saved by Internet Explorer. Would you like to clear these clear text passwords? This only affects the Internet Explorer browser [y/N]"
-If ($Answer2 -like "y*") {
-
-    Write-Output "[*] Deleting clear text credentials from the Windows Password Vault"
-    ForEach ($V in $Vault) {
-
-        $Cred = New-Object -TypeName Windows.Security.Credentials.PasswordCredential
-        $Cred.Resource = $V.RetrieveAll().Resource
-        $Cred.UserName = $V.RetrieveAll().UserName
-        $V.Remove($Cred)
-
-    }  # End ForEach
-
-}  # End If
-
+Stop-Service -Name $Services -ErrorAction SilentlyContinue | Out-Null
+$Services | ForEach-Object { Set-Service -Name $_ -StartupType Disabled } 
+#this will throw an error if a service such as "sshd" is not installed. 
 
 # LOGGING
 If ($PSVersionTable.PSVersion.Major -lt 5) {
@@ -371,16 +289,16 @@ $WUSettings.NotificationLevel= 3
 $WUSettings.Save()
 
 # WINDOWS DEFENDER
-Write-Output "Enabling Windows Defender to check archive file types"
-Set-MpPreference -DisableArchiveScanning 0
+#Write-Output "Enabling Windows Defender to check archive file types"
+#Set-MpPreference -DisableArchiveScanning 0
 
-Write-Output "Enabling Windows Defender Potentially Unwanted Program (PUP) protection which prevents applications you do not tell Windows to install from installing"
-Set-MpPreference -PUAProtection 1
+#Write-Output "Enabling Windows Defender Potentially Unwanted Program (PUP) protection which prevents applications you do not tell Windows to install from installing"
+#Set-MpPreference -PUAProtection 1
 
 Set-MpPreference -DisableBehaviorMonitoring $False
 Enable-WindowsOptionalFeature -FeatureName "Windows-Defender-ApplicationGuard" -Online
 
-Write-Output "[*] Enabling the sanbox of Windows Defender"
+Write-Output "[*] Enabling the sandbox of Windows Defender"
 setx /m mp_force_use_sandbox 1
 
 Write-Output "[*] Enabling Structured Exception Handling Overwrite Protection (SEHOP)"
@@ -421,3 +339,73 @@ New-ItemProperty -Path "HKLM:\Software\Microsoft\Windows NT\CurrentVersion\Winlo
 Write-Output "[*] Enabling Windows Defender AV to prevent user and apps from accessing dangerous websites"
 New-Item -Path "HKLM:\Software\Policies\Microsoft\Windows Defender\Windows Defender Exploit Guard\Network Protection" -Force -ErrorAction SilentlyContinue
 New-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows Defender\Windows Defender Exploit Guard\Network Protection" -Name EnableNetworkProtection -Value 1 -PropertyType Dword
+
+
+
+#############################   DISABLED #############################   
+
+# FIREWALL LOG FILES
+#Write-Output "[*] Defining log file locations for Public, Domain, and Private firewall connections"
+#$FirewallLogFiles = "C:\Windows\System32\LogFiles\Firewall\domainfw.log","C:\Windows\System32\LogFiles\Firewall\domainfw.log.old","C:\Windows\System32\LogFiles\Firewall\privatefw.log","C:\Windows\System32\LogFiles\Firewall"
+#New-Item -Path $Path -ItemType Directory -Force -ErrorAction SilentlyContinue | Out-Null
+
+#$Acl = Get-Acl -Path $FirewallLogFiles
+#$Acl.SetAccessRuleProtection($True, $False)
+#$PermittedUsers = @('NT AUTHORITY\SYSTEM', 'BUILTIN\Administrators', 'BUILTIN\Network Configuration Operators', 'NT SERVICE\MpsSvc')
+#ForEach ($User in $PermittedUsers) {
+
+#  $Permission = $User, 'FullControl', 'Allow'
+#  $AccessRule = New-Object -TypeName System.Security.AccessControl.FileSystemAccessRule -ArgumentList $Permission
+#  $Acl.AddAccessRule($AccessRule)
+
+#}  # End ForEach
+
+#$Acl.SetOwner((New-Object -TypeName System.Security.Principal.NTAccount('BUILTIN\Administrators')))
+#$Acl | Set-Acl -Path $FirewallLogFiles
+
+# GROUP MEMBERSHIP
+#Write-Output "[*] Enabling UAC on all processes that require elevation"
+#Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "ConsentPromptBehaviorAdmin" -Value 2
+
+#Write-Output "[*] Checking if current user is a member of the local Administrators group"
+#If ((Get-LocalGroupMember -Group "Administrators").Name -Contains "$env:COMPUTERNAME\$env:USERNAME") {
+
+ #   Write-Output "[*] It is considered best practice to log into Windows using a user account that does not have Administrative priviledge. If you wish to continue doing what you are doing it is not critical to adapt to this suggestion"
+
+#    $Answer1 = Read-Host -Prompt "Would you like to create a user account to sign into Windows with from now on and use the $env:USERNAME account and password whenever you need to elevate privilege? [y/N]"
+ #   If ($Answer1 -like "y*") {
+
+ #       $FullName = Read-Host -Prompt "What is the full name of the user who will use this account"
+ #       $Name = Read-Host -Prompt "What should the account Name be? EXAMPLE: John Smith"
+ #       $Description = Read-Host -Prompt "Add a description for this user account if you like. Feel free to leave blank"
+
+  #      Write-Output "[*] Creating the $Name user account"
+   #     New-LocalUser -FullName $FullName -Name $Name -Description $Description -Password (Read-Host -Prompt "Set the password for the account" -AsSecureString)
+
+  #      Write-Output "[*] Adding $Name to the local Users group"
+  #      Add-LocalGroupMember -Group "Users" -Member "$Name"
+
+ #   }  # End If
+
+#}  # End If
+
+
+# PASSWORD VAULT
+#[Windows.Security.Credentials.PasswordVault,Windows.Security.Credentials,ContentType=WindowsRuntime]
+#$Vault = New-Object -TypeName Windows.Security.Credentials.PasswordVault
+#$Vault.RetrieveAll()
+
+#$Answer2 = Read-Host -Prompt "[*] If you see any saved passwords in the output above it is because they credentials are most likely saved by Internet Explorer. Would you like to clear these clear text passwords? This only affects the Internet Explorer browser [y/N]"
+#If ($Answer2 -like "y*") {
+
+ #   Write-Output "[*] Deleting clear text credentials from the Windows Password Vault"
+ #   ForEach ($V in $Vault) {
+
+  #      $Cred = New-Object -TypeName Windows.Security.Credentials.PasswordCredential
+  #      $Cred.Resource = $V.RetrieveAll().Resource
+  #      $Cred.UserName = $V.RetrieveAll().UserName
+  #      $V.Remove($Cred)
+
+ #   }  # End ForEach
+
+#}  # End If
