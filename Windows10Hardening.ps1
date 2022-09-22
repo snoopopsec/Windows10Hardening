@@ -111,16 +111,16 @@ Set-SmbServerConfiguration -EnableSMB2Protocol $True -Force
 
 Write-Output '[*] Enabling SMB Signing'
 New-Item -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanWorkStation\Parameters" -Name RequireSecuritySignature -Value 1 -Force -ErrorAction SilentlyContinue | Out-Null
-New-Item -Path "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\LanmanWorkStation\Parameters" -Name EnableSecuritySignature -Value 1 -Force -ErrorAction SilentlyContinue | Out-Null
-New-Item -Path "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\LanmanServer\Parameters" -Name RequireSecuritySignature -Value 1 -Force -ErrorAction SilentlyContinue | Out-Null
-New-Item -Path "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\LanmanServer\Parameters" -Name EnableSecuritySignature -Value 1 -Force -ErrorAction SilentlyContinue | Out-Null
+New-Item -Path "HKLM:\System\CurrentControlSet\Services\LanmanWorkStation\Parameters" -Name EnableSecuritySignature -Value 1 -Force -ErrorAction SilentlyContinue | Out-Null
+New-Item -Path "HKLM:\System\CurrentControlSet\Services\LanmanServer\Parameters" -Name RequireSecuritySignature -Value 1 -Force -ErrorAction SilentlyContinue | Out-Null
+New-Item -Path "HKLM:\System\CurrentControlSet\Services\LanmanServer\Parameters" -Name EnableSecuritySignature -Value 1 -Force -ErrorAction SilentlyContinue | Out-Null
 
 Write-Output "[*] Blocking a few common ports attackers may use with reverse shells."
 New-NetFirewallRule -DisplayName "Disallow Common Ports That Attackers Use" -Direction "Outbound" -LocalPort 1336,1337,1338,1339,4444,4445,4446,4447,4448,4449 -Protocol "TCP" -Action Block
 New-NetFirewallRule -DisplayName "Disallow Common Ports That Attackers Use" -Direction "Outbound" -LocalPort 1336,1337,1338,1339,4444,4445,4446,4447,4448,4449 -Protocol "UDP" -Action Block
 
 Write-Output "[*] Disabling SMBv3 Compression"
-New-Item -Path "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\LanmanServer\Parameters" -Name DisableCompression -Value 1  -Force -ErrorAction SilentlyContinue | Out-Null
+New-Item -Path "HKLM:\System\CurrentControlSet\Services\LanmanServer\Parameters" -Name DisableCompression -Value 1  -Force -ErrorAction SilentlyContinue | Out-Null
 Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters" -Name DisableCompression -Value 1  -Force -ErrorAction SilentlyContinue | Out-Null
 
 # DNS
